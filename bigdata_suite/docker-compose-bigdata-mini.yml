@@ -1,11 +1,12 @@
 version: "3"
 services:
   namenode: 
-    image: bde2020/hadoop-namenode:1.1.0-hadoop2.7.1-java8
+    image: bde2020/hadoop-namenode:1.1.0-hadoop2.7.1-java8-fix
     container_name: namenode
     volumes:
       - hadoop_namenode:/hadoop/dfs/name
       - ./input_files:/input_files
+      # - ./conf/hdconf:/etc/hadoop
     environment:
       - CLUSTER_NAME=test
     env_file:
@@ -46,7 +47,7 @@ services:
   #     - ./hadoop.env
   
   datanode1:
-    image: bde2020/hadoop-datanode:1.1.0-hadoop2.7.1-java8
+    image: bde2020/hadoop-datanode:1.1.0-hadoop2.7.1-java8-fix
     container_name: datanode1
     depends_on:
       - namenode
@@ -76,9 +77,9 @@ services:
   #     - ./hadoop.env
 
   master:
-    image: gettyimages/spark:2.4.3-hadoop-2.7
+    image: gettyimages/spark:2.4.3-hadoop-2.7-ssh
     container_name: master
-    command: bin/spark-class org.apache.spark.deploy.master.Master -h master
+    command: bash -c  "bin/spark-class org.apache.spark.deploy.master.Master -h master && /usr/sbin/sshd -D"
     hostname: master
     environment:
       MASTER: spark://master:7077
@@ -108,9 +109,10 @@ services:
       - ./conf/master:/conf
       - ./data:/tmp/data
       - ./jars:/root/jars
+      - ./etl:/opt/etl/alchemists
 
   worker:
-    image: gettyimages/spark:2.4.3-hadoop-2.7
+    image: gettyimages/spark:2.4.3-hadoop-2.7-ssh
     container_name: worker
     command: bin/spark-class org.apache.spark.deploy.worker.Worker spark://master:7077
     hostname: worker
@@ -171,21 +173,28 @@ services:
       POSTGRES_DB: "airflow"
       PGDATA: "/data"  
     volumes:
-      - pg-data2:/data  
+      - pg-data3:/data  
   # presto-coordinator:
   #   image: shawnzhu/prestodb:0.181
   #   ports:
   #     - "8087:8080"
 
   webserver:
-        image: puckel/docker-airflow:1.10.4
+        image: puckel/docker-airflow:1.10.4-ssh-fix
+
+        hostname: airflow
+
         depends_on:
             - postgres
         environment:
             - LOAD_EX=n
             - EXECUTOR=Local
+            - FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+
         volumes:
-            - ./dags:/usr/local/airflow/dags
+            # - ./dags:/usr/local/airflow/dags
+            - ./etl/src/alchemists/airflow/dags:/usr/local/airflow/dags
+            - ./etl:/opt/etl/alchemists
             # Uncomment to include custom plugins
             # - ./plugins:/usr/local/airflow/plugins
         ports:
@@ -202,5 +211,5 @@ volumes:
   hadoop_datanode1:
   # hadoop_datanode2:
   # hadoop_datanode3:
-  pg-data2:  
+  pg-data3:  
   # hadoop_historyserver:
